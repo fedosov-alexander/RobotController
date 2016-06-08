@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Handler;
 import android.util.Log;
 
@@ -16,20 +17,19 @@ import java.util.UUID;
 /**
  * Created by Alexander on 23.05.2016.
  */
-public class Device extends ArduinoDevice{
+public class Device extends ArduinoDevice {
     private BluetoothSocket mSocket;
     private BluetoothDevice mBluetoothDevice;
     private DeviceCommunicationThread mCommunicator;
-    private Handler mMessageHandler;
-    public Device(BluetoothDevice d, Handler h){
+
+    public Device(BluetoothDevice d) {
         super(d);
         mBluetoothDevice = d;
-        mMessageHandler = h;
     }
 
-    public void connect(UUID appUUID) {
+    public void connect(UUID appUUID, Handler handler) {
         try {
-            mSocket = createRfcommSocket(mBluetoothDevice);
+            mSocket = mBluetoothDevice.createRfcommSocketToServiceRecord(appUUID);
             mSocket.connect();
         } catch (IOException e) {
             try {
@@ -40,49 +40,33 @@ public class Device extends ArduinoDevice{
             e.printStackTrace();
         }
         try {
-            mCommunicator = DeviceCommunicationThread.init(mSocket,mMessageHandler);
+            if (mSocket.isConnected()) {
+                mCommunicator = DeviceCommunicationThread.init(mSocket, handler);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-    public void write(byte b)throws Exception{
-        Log.d("Device","Write called");
-        if(mSocket.isConnected())
-        if(mCommunicator!=null){
-            mCommunicator.write(b);
-        }
-    }
-    public void closeConnection() throws Exception{
 
+    public void write(byte b) throws Exception {
+        Log.d("Device", "Write byte = " + b);
+        if (mSocket.isConnected())
+            if (mCommunicator != null) {
+                mCommunicator.write(b);
+            }
+    }
+
+    public void closeConnection() throws Exception {
         mCommunicator.setRunning(false);
         mSocket.close();
         mCommunicator.join();
     }
-    public boolean isConnected(){
-        if(mSocket != null){
+
+    public boolean isConnected() {
+        if (mSocket != null) {
             return mSocket.isConnected();
         } else {
             return false;
         }
-    }
-    public static BluetoothSocket createRfcommSocket(BluetoothDevice device) {
-        BluetoothSocket tmp = null;
-        try {
-            Class class1 = device.getClass();
-            Class aclass[] = new Class[1];
-            aclass[0] = Integer.TYPE;
-            Method method = class1.getMethod("createRfcommSocket", aclass);
-            Object aobj[] = new Object[1];
-            aobj[0] = Integer.valueOf(1);
-
-            tmp = (BluetoothSocket) method.invoke(device, aobj);
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        }
-        return tmp;
     }
 }

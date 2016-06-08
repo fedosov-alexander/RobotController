@@ -1,6 +1,7 @@
 package com.example.alexander.robotcontroller;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -8,33 +9,31 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
+import android.provider.Settings;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.UUID;
 
 public class RobotControllerActivity extends Activity implements SensorEventListener {
-    //Default UUID
-    private static final UUID Default_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+
+    private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
     private static final int CALIBRATION_ITERATIONS = 50;
+    private static final int UPDATE_ROBOT_POSITION = 1;
+    private static final int UPDATE_DESTINATION_POINT = 2;
+    private static final float RADIANS_TO_DEGREES = (float) (180.0f / Math.PI);
 
-    private static final int REQUEST_CONNECT_TO_DEVICE = 1;
-    private static final int REQUEST_CONNECT_TO_ROBOT = 2;
     private SensorManager mSensorManager;
     private Sensor mMagneticSensor;
     private Sensor mAccelerometer;
-    private TextView mCurrentHeadingTextView;
-    private TextView mCurrentAngleTextView;
-    private TextView mCurrentHeight;
-    private Button mSetPositionButton;
-    private ArrayList<ArduinoDevice> mDevices;
-    private Device mDevice;
-    private Robot mRobot;
     private float[] mMagneticData = new float[3];
     private float[] mAccelerometerData = new float[3];
     private float[] mOrientation = new float[3];
@@ -42,7 +41,25 @@ public class RobotControllerActivity extends Activity implements SensorEventList
     private float[] mI = new float[16];
     private int mIterations = 0;
 
-    private Handler mHandler;
+    private TextView mCurrentHeadingTextView;
+    private TextView mCurrentAngleTextView;
+    private TextView mRobotHeadingTextView;
+    private TextView mRobotAngleTextView;
+    private TextView mDestinationHeadingTextView;
+    private TextView mDestinationAngleTextView;
+    private float mCurrentHeading;
+    private Button mSetRobotPositionButton;
+    private Button mSetDestinationPointButton;
+    private Button mSendDataButton;
+
+    private ArrayList<ArduinoDevice> mDevices;
+
+    private Device mDevice = null;
+    private Robot mRobot = null;
+    private AlgorithmRequiredPointData mRobotPositionData;
+    private AlgorithmRequiredPointData mDestinationPointData;
+
+    private Handler mMessageHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,30 +67,62 @@ public class RobotControllerActivity extends Activity implements SensorEventList
         setContentView(R.layout.activity_main);
         mCurrentHeadingTextView = (TextView) findViewById(R.id.currentHeadingTextView);
         mCurrentAngleTextView = (TextView) findViewById(R.id.currentAngleTextView);
-        mCurrentHeight = (TextView) findViewById(R.id.currentHeight);
-        mSetPositionButton = (Button) findViewById(R.id.setpPositionButton);
-        mSetPositionButton.setOnClickListener(new View.OnClickListener() {
+        mRobotHeadingTextView = (TextView) findViewById(R.id.headingOnRobotTextView);
+        mRobotAngleTextView = (TextView) findViewById(R.id.angleOnRobotTextView);
+        mDestinationHeadingTextView = (TextView) findViewById(R.id.headingOnDestinationTextView);
+        mDestinationAngleTextView = (TextView) findViewById(R.id.angleOnDestinationTextView);
+        mSetRobotPositionButton = (Button) findViewById(R.id.setRobotPositionButton);
+        mSetRobotPositionButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Log.d("RCActivity", "Oclick called");
                 if (mDevice != null) {
                     try {
-                        if(!mDevice.isConnected()){
-                            mDevice.connect(Default_UUID);
+                        if (!mDevice.isConnected()) {
+                            mDevice.connect(MY_UUID, mMessageHandler);
                         }
-                        mDevice.write((byte) 1);
+                        mDevice.write((byte) 11);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
+                } else {
+                    updateRobotPosition(100);
+                }
+            }
+        });
+        mSetDestinationPointButton = (Button) findViewById(R.id.setDestinationPointButton);
+        mSetDestinationPointButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (mDevice != null) {
+                    try {
+                        if (!mDevice.isConnected()) {
+                            mDevice.connect(MY_UUID, mMessageHandler);
+                        }
+                        mDevice.write((byte) 12);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    updateDestinationPoint(100);
+                }
+            }
+        });
+        mSendDataButton = (Button) findViewById(R.id.sendDataButton);
+        mSendDataButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if ((mRobot != null) && (mRobotPositionData != null) && (mDestinationPointData != null)) {
+                    AlgorithmRequiredPointData d = getRobotControlData(mRobotPositionData, mDestinationPointData);
+                    mRobot.write(d.getAzimuth(), d.getLength());
                 }
             }
         });
         mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         mDevices = getIntent().getExtras().getParcelableArrayList("ArduinoDevices");
-        for (int i = 0; (i < mDevices.size())&&(i<2); i++) {
+        for (int i = 0; (i < mDevices.size()) && (i < 2); i++) {
             switch (mDevices.get(i).getDerivedType()) {
                 case DEVICE: {
-                    mDevice = new Device(mDevices.get(i).getBluetoothDevice(), mHandler);
+                    mDevice = new Device(mDevices.get(i).getBluetoothDevice());
                     break;
                 }
                 case ROBOT: {
@@ -85,30 +134,28 @@ public class RobotControllerActivity extends Activity implements SensorEventList
                 }
             }
         }
-        mHandler = new Handler() {
+
+        mMessageHandler = new Handler(Looper.getMainLooper()) {
             @Override
             public void handleMessage(Message msg) {
-                mCurrentHeight.setText("current height = " + msg.getData().getFloat("height"));
+                Log.d("RCActivity", "HandleMessage called, msg.waht = " + msg.what);
+                Float length = (Float) msg.obj;
+                switch (msg.what) {
+                    case UPDATE_ROBOT_POSITION: {
+                        updateRobotPosition(length);
+                        break;
+                    }
+                    case UPDATE_DESTINATION_POINT: {
+                        updateDestinationPoint(length);
+                        break;
+                    }
+                    default: {
+                        break;
+                    }
+                }
+
             }
         };
-        if(mRobot!=null){
-            connectToBluetoothDevice(mRobot, REQUEST_CONNECT_TO_ROBOT);
-        }
-        if(mDevice!=null){
-            connectToBluetoothDevice(mDevice, REQUEST_CONNECT_TO_DEVICE);
-        }
-    }
-
-    private void connectToBluetoothDevice(ArduinoDevice device,int code) {
-        String ACTION_PAIRING_REQUEST = "android.bluetooth.device.action.PAIRING_REQUEST";
-        Intent intent = new Intent(ACTION_PAIRING_REQUEST);
-        String EXTRA_DEVICE = "android.bluetooth.device.extra.DEVICE";
-        intent.putExtra(EXTRA_DEVICE,device.getBluetoothDevice());
-        String EXTRA_PAIRING_VARIANT = "android.bluetooth.device.extra.PAIRING_VARIANT";
-        int PAIRING_VARIANT_PIN = 0;
-        intent.putExtra(EXTRA_PAIRING_VARIANT, PAIRING_VARIANT_PIN);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
     }
 
     @Override
@@ -118,6 +165,12 @@ public class RobotControllerActivity extends Activity implements SensorEventList
         mMagneticSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
         mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_GAME);
         mSensorManager.registerListener(this, mMagneticSensor, SensorManager.SENSOR_DELAY_GAME);
+        if ((mRobot != null)) {
+            mRobot.connect(MY_UUID);
+        }
+        if ((mDevice != null) && (!mDevice.isConnected())) {
+            mDevice.connect(MY_UUID, mMessageHandler);
+        }
     }
 
     @Override
@@ -125,7 +178,7 @@ public class RobotControllerActivity extends Activity implements SensorEventList
         super.onPause();
         mSensorManager.unregisterListener(this);
         try {
-            // mDevice.closeConnection();
+            mDevice.closeConnection();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -134,11 +187,6 @@ public class RobotControllerActivity extends Activity implements SensorEventList
     @Override
     protected void onStop() {
         super.onStop();
-        try {
-            //mDevice.closeConnection();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     @Override
@@ -156,23 +204,14 @@ public class RobotControllerActivity extends Activity implements SensorEventList
             data[i] = event.values[i];
         }
         SensorManager.getRotationMatrix(mR, mI, mAccelerometerData, mMagneticData);
-// some test code which will be used/cleaned up before we ship this.
-//        SensorManager.remapCoordinateSystem(mR,
-//                SensorManager.AXIS_X, SensorManager.AXIS_Z, mR);
-//        SensorManager.remapCoordinateSystem(mR,
-//                SensorManager.AXIS_Y, SensorManager.AXIS_MINUS_X, mR);
         SensorManager.getOrientation(mR, mOrientation);
-        float incl = SensorManager.getInclination(mI);
         mIterations++;
         if (mIterations > CALIBRATION_ITERATIONS) {
-            final float rad2deg = (float) (180.0f / Math.PI);
             mIterations = 0;
-            mCurrentHeadingTextView.setText("Current heading: " + (int) (mOrientation[0] * rad2deg) + " degrees");
-           /* Log.d("Compass", "yaw: " + (int)(mOrientation[0]*rad2deg) +
-                    "  pitch: " + (int)(mOrientation[1]*rad2deg) +
-                    "  roll: " + (int)(mOrientation[2]*rad2deg) +
-                    "  incl: " + (int)(incl*rad2deg)
-            );*/
+            mCurrentHeading = mOrientation[0] * RADIANS_TO_DEGREES;
+            mCurrentHeading += (mCurrentHeading > 0 ? 0 : 360);
+            mCurrentHeadingTextView.setText("Current heading: " + (int) (mCurrentHeading) + " degrees");
+            mCurrentAngleTextView.setText("Current angle: " + (int) (mOrientation[1] * RADIANS_TO_DEGREES) + " degrees");
         }
     }
 
@@ -181,6 +220,67 @@ public class RobotControllerActivity extends Activity implements SensorEventList
 
     }
 
+    private AlgorithmRequiredPointData getRobotControlData(AlgorithmRequiredPointData robotPosition, AlgorithmRequiredPointData destinationPoint) {
+        float angle = Math.abs(robotPosition.getAzimuth() - destinationPoint.getAzimuth());
+        if (angle < 5) {
+            float heading;
+            angle = Math.abs(robotPosition.getPitch() - destinationPoint.getPitch());
+            if (robotPosition.getPitch() > destinationPoint.getPitch()) {
+                heading = robotPosition.getAzimuth();
+            } else {
+                heading = robotPosition.getAzimuth();
+                heading += 180;
+                if (heading > 360) {
+                    heading -= 360;
+                }
+            }
+            return new AlgorithmRequiredPointData(heading,
+                    cosineTheorem(robotPosition.getLength(), angle, destinationPoint.getLength()));
+        }
+        if (Math.abs(angle - 180) < 5) {
+            angle = 180 - robotPosition.getPitch() - destinationPoint.getPitch();
+            return new AlgorithmRequiredPointData(destinationPoint.getAzimuth(),
+                    cosineTheorem(robotPosition.getLength(), angle, destinationPoint.getLength()));
+        }
+        double robotPositionHeadingInRadians = Math.toRadians(robotPosition.getAzimuth());
+        double destinationPointHeadingInRadians = Math.toRadians(destinationPoint.getAzimuth());
+        float length = cosineTheorem(robotPosition.getLength(), angle, destinationPoint.getLength());
+        double xDestination, yDestination, xRobot, yRobot;
+        xDestination = destinationPoint.getLength() * Math.cos(destinationPointHeadingInRadians);
+        yDestination = destinationPoint.getLength() * Math.sin(destinationPointHeadingInRadians);
+        xRobot = robotPosition.getLength() * Math.cos(robotPositionHeadingInRadians);
+        yRobot = robotPosition.getLength() * Math.sin(robotPositionHeadingInRadians);
+        xDestination -= xRobot;
+        yDestination -= yRobot;
+        xDestination /= length;//stores cos of azimuth from robot position on destination point
+        yDestination /= length;//stores sin of azimuth from robot position on destination point
+        double azimuth;
+        azimuth = Math.acos(xDestination);
+        azimuth = Math.toDegrees(azimuth);
+        if (yDestination < 0) {
+            azimuth = 360 - azimuth;
+        }
+        return new AlgorithmRequiredPointData((float) azimuth, length);
+    }
+
+    private float cosineTheorem(float a, float angle, float b) {
+        double result = a * a + b * b - 2 * a * b * Math.cos(Math.toRadians(angle));
+        return ((float) Math.sqrt(result));
+    }
+
+    private void updateRobotPosition(float length) {
+        mRobotPositionData = new AlgorithmRequiredPointData((mCurrentHeading));
+        mRobotPositionData.calculateLength((mOrientation[1] * RADIANS_TO_DEGREES), length);
+        mRobotHeadingTextView.setText("Heading on robot position: " + (int) (mCurrentHeading) + " degrees");
+        mRobotAngleTextView.setText("Angle on robot position: " + (int) ((mOrientation[1] * RADIANS_TO_DEGREES)) + " degrees");
+    }
+
+    private void updateDestinationPoint(float length) {
+        mDestinationPointData = new AlgorithmRequiredPointData((mCurrentHeading));
+        mDestinationPointData.calculateLength((mOrientation[1] * RADIANS_TO_DEGREES), length);
+        mDestinationHeadingTextView.setText("Heading on destination point: " + (int) (mCurrentHeading) + " degrees");
+        mDestinationAngleTextView.setText("Angle on destination point: " + (int) ((mOrientation[1] * RADIANS_TO_DEGREES)) + " degrees");
+    }
 }
 
 

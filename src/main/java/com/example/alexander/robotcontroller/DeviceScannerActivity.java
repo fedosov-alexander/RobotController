@@ -16,6 +16,7 @@ import android.widget.ListView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -26,7 +27,7 @@ public class DeviceScannerActivity extends Activity {
     private static final int REQUEST_ENABLE_BT = 1;
     private BluetoothAdapter mBluetoothAdapter;
     private ArrayList<BluetoothDevice> mDiscoveredDevices;
-    private ArrayList<BluetoothDevice> mSelectedDevices;
+    private Set<BluetoothDevice> mSelectedDevices;
     private BluetoothDeviceArrayAdapter mDeviceArrayAdapter;
     private BroadcastReceiver mReceiver;
     private Button mStartSearchingButton;
@@ -69,7 +70,7 @@ public class DeviceScannerActivity extends Activity {
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         mDiscoveredDevices = new ArrayList<>();
-        mSelectedDevices = new ArrayList<>();
+        mSelectedDevices = new HashSet<BluetoothDevice>();
         mDeviceArrayAdapter =  new BluetoothDeviceArrayAdapter(this, mDiscoveredDevices);
         mDevicesListView = (ListView) findViewById(R.id.devicesList);
         mDevicesListView.setAdapter(mDeviceArrayAdapter);
@@ -128,7 +129,7 @@ public class DeviceScannerActivity extends Activity {
     }
     private void startConnectionManagingActivity(){
         Intent intent = new Intent(DeviceScannerActivity.this, ConnectionManagingActivity.class);
-        intent.putParcelableArrayListExtra("SelectedDevices",  mSelectedDevices);
+        intent.putParcelableArrayListExtra("SelectedDevices", new ArrayList<BluetoothDevice>(mSelectedDevices));
         startActivity(intent);
     }
     public BluetoothDeviceArrayAdapter getAdapter(){

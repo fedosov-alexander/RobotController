@@ -3,50 +3,117 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:paddingBottom="@dimen/activity_vertical_margin"
-    android:paddingLeft="@dimen/activity_horizontal_margin"
-    android:paddingRight="@dimen/activity_horizontal_margin"
-    android:paddingTop="@dimen/activity_vertical_margin">
+    android:orientation="vertical">
 
     <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:layout_weight="40"
-        >
-        <TextView
-        android:id = "@+id/currentHeadingTextView"
-        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="current heading " />
+        android:layout_weight="1"
+        android:orientation="vertical">
 
         <TextView
-        android:id = "@+id/currentAngleTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="current angle " />
+            android:id="@+id/currentHeadingTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="current heading " />
+
         <TextView
-            android:id = "@+id/currentHeight"
+            android:id="@+id/currentAngleTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="current angle " />
+    </LinearLayout>
+
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="4"
+        android:orientation="horizontal">
+
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/headingOnRobotTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Heading on robot position " />
+
+            <TextView
+                android:id="@+id/angleOnRobotTextView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Angle on robot position " />
+
+        </LinearLayout>
+
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:tools="http://schemas.android.com/tools"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Current height" />
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/headingOnDestinationTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Heading on destination point " />
+
+            <TextView
+                android:id="@+id/angleOnDestinationTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Angle on destination point " />
+        </LinearLayout>
     </LinearLayout>
+
     <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
+        android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:layout_weight="20">
+        android:layout_weight="2"
+        android:orientation="horizontal">
 
         <Button
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Set position"
-            android:id="@+id/setpPositionButton">
+            android:id="@+id/setRobotPositionButton"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Set robot position">
 
         </Button>
+
+        <Button
+            android:id="@+id/setDestinationPointButton"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Set destination point">
+
+        </Button>
+    </LinearLayout>
+
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="2"
+        android:orientation="vertical">
+
+        <Button
+            android:id="@+id/sendDataButton"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:text="Send data"></Button>
     </LinearLayout>
 </LinearLayout>

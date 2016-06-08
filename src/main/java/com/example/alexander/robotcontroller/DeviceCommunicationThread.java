@@ -10,6 +10,7 @@ import java.nio.ByteOrder;
 
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
@@ -20,49 +21,63 @@ public class DeviceCommunicationThread extends Thread {
     private BluetoothSocket mBluetoothSocket;
     private InputStream mInputStream;
     private OutputStream mOutputStream;
-    private Handler mMessageHandler;
     private boolean mIsRunning;
     private Byte mMessage = null;
-    private DeviceCommunicationThread(BluetoothSocket sock,Handler h){
+    private Handler mHandler;
+    private int UpdatedInstance = 0;
+
+    private DeviceCommunicationThread(BluetoothSocket sock, Handler handler) {
         mBluetoothSocket = sock;
-        mMessageHandler = h;
+        mHandler = handler;
     }
 
-    public static DeviceCommunicationThread init(BluetoothSocket sock,Handler h)throws Exception{
+    public static DeviceCommunicationThread init(BluetoothSocket sock, Handler handler) throws Exception {
         DeviceCommunicationThread thread = null;
-        try{
-            thread = new DeviceCommunicationThread(sock,h);
+        try {
+            thread = new DeviceCommunicationThread(sock, handler);
             thread.setInputStream(thread.getBluetoothSocket().getInputStream());
             thread.setOutputStream(thread.getBluetoothSocket().getOutputStream());
             thread.setRunning(true);
             thread.start();
-        } catch(Exception e){
+        } catch (Exception e) {
 
         }
         return thread;
     }
-    @Override
-    public void run(){
 
-        while (mIsRunning){
-            try{
-                if(mInputStream.available()>0){
+    @Override
+    public void run() {
+
+        while (mIsRunning) {
+            try {
+                if (mInputStream.available() == 4) {
                     byte[] b = new byte[4];//allocating memory to store float
                     mInputStream.read(b);
-                    float f = ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN).getFloat();
-                    Message msg = new Message();
-                    Bundle bundle = new Bundle();
-                    bundle.putFloat("height",f);
-                    msg.setData(bundle);
-                    mMessageHandler.sendMessage(msg);
-                    Log.d("DeviceCommunicationThr","Read float = "+f);
+                    Float f = ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN).getFloat();
+                    Log.d("DCThread", "instance = " + UpdatedInstance);
+                    if (UpdatedInstance != 0) {
+                        Message msg = mHandler.obtainMessage(UpdatedInstance, f);
+                        msg.sendToTarget();
+                        Log.d("DCThread", "send msg to instance = " + UpdatedInstance);
+                        UpdatedInstance = 0;
+                    }
                 }
-            }catch (Exception e){
+                if (mInputStream.available() > 4) {
+                    mInputStream.skip(mInputStream.available());
+                }
+            } catch (Exception e) {
 
             }
-            if(mMessage!=null){
+            if (mMessage != null) {
                 byte[] arr = new byte[1];
                 arr[0] = mMessage.byteValue();
+                if (arr[0] == (byte) 11) {
+                    UpdatedInstance = 1;
+                }
+                if (arr[0] == (byte) 12) {
+                    UpdatedInstance = 2;
+                }
+                arr[0] = (byte) 1;
                 try {
                     mOutputStream.write(arr);
                 } catch (IOException e) {
@@ -72,20 +87,24 @@ public class DeviceCommunicationThread extends Thread {
             }
         }
     }
-    public void write(byte b) throws  Exception{
+
+    public void write(byte b) throws Exception {
         mMessage = new Byte(b);
-        Log.d("DeviceCommunicationThr","Writing byte = "+b);
     }
-    public void setRunning(boolean running){
+
+    public void setRunning(boolean running) {
         mIsRunning = running;
     }
-    private BluetoothSocket getBluetoothSocket(){
+
+    private BluetoothSocket getBluetoothSocket() {
         return mBluetoothSocket;
     }
-    private void setInputStream(InputStream is){
+
+    private void setInputStream(InputStream is) {
         mInputStream = is;
     }
-    private void setOutputStream(OutputStream os){
+
+    private void setOutputStream(OutputStream os) {
         mOutputStream = os;
     }
 }
